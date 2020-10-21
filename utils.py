@@ -32,7 +32,7 @@ def get_args():
     return parser.parse_args()
 
 
-def get_logger(level):
+def set_logging(level):
     if level:
         format = "%(asctime)s  %(levelname)s  %(message)s"
         logging.basicConfig(format=format, filename="app.log")

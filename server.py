@@ -4,11 +4,13 @@ import logging
 from aiohttp import web
 from pathlib import Path
 
-from utils import get_args, get_logger
+from utils import get_args, set_logging
 
 CHUNK_SIZE = 200 * 1024
 
 # from https://docs.aiohttp.org/en/stable/web_advanced.html#middlewares
+
+
 @web.middleware
 async def error_middleware(request, handler):
     try:
@@ -34,7 +36,7 @@ async def handle_index_page(request):
 async def archivate(request):
     delay = request.app["delay"]
     photo_dir_path = Path(request.app["path"]).resolve()
-    folder_name = request.match_info.get("archive_hash")
+    folder_name = request.match_info["archive_hash"]
     full_path = photo_dir_path / folder_name
 
     if not full_path.exists():
@@ -45,10 +47,10 @@ async def archivate(request):
     response.headers["Content-Disposition"] = "attachment; filename=archive.zip"
     await response.prepare(request)
 
-    cmd = ["zip", "-rj", "-"]
+    cmd = ["zip", "-r", "-", "."]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
-        full_path,
+        cwd=full_path,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         limit=CHUNK_SIZE,
@@ -65,6 +67,10 @@ async def archivate(request):
     except asyncio.CancelledError:
         proc.terminate()
         logging.info("Download was interrupted")
+        raise
+    except BaseException:
+        proc.terminate()
+        logging.exception("Got error while executing")
         raise
     finally:
         await proc.communicate()
@@ -85,6 +91,6 @@ if __name__ == "__main__":
     for param, value in args.items():
         app[param] = value
 
-    logger = get_logger(app["log"])
+    logger = set_logging(app["log"])
 
     web.run_app(app)
